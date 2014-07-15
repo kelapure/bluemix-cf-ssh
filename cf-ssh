@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+
+set -o pipefail
+
+appname=$1
+if [[ "${appname}X" == "X" ]]; then
+  cf apps
+  echo "USAGE: cf-ssh [-b buildpack] [-p app_path] [-m memory_amount] APPNAME"
+  echo "  "
+  exit 1
+fi
+shift
+
+memory_amount="512MB"
+
+while getopts "b:p:m:" opt; do
+  case $opt in
+    b)
+      buildpack=$OPTARG
+      ;;
+    p)
+      app_path=$OPTARG
+      ;;
+    m)
+      memory_amount=$OPTARG
+      ;;
+    *)
+      echo "unrecognized option: $opt"
+      ;;
+  esac
+done
+
+
+# $CF_SSH_CLEANUP options: "delete", else stop upon exit
+# Stopping means the SSH container is not re-created with latest
+# application source code/buildpack next time.
+CF_SSH_CLEANUP=${CF_SSH_CLEANUP:-"delete"}
+
+ssh_appname="$appname-ssh"
+
+manifest=${manifest:-./cf-ssh.yml}
+function create_manifest {
+  cat > ${manifest} <<DELIM
+---
+applications:
+- name: ${ssh_appname}
+  command: curl https://raw.githubusercontent.com/ibmjstart/bluemix-cf-ssh/master/bootstrap.sh | sh
+  no-route: true
+  memory: ${memory_amount}
+DELIM
+
+  if [[ "${buildpack}X" != "X" ]]; then
+    echo "  buildpack: ${buildpack}" >> ${manifest}
+  fi
+
+  if [[ "${app_path}X" != "X" ]]; then
+    echo "  path: ${app_path}" >> ${manifest}
+  fi
+
+  services_bound_to_app=$(cf s | grep " $appname " | awk '{ print $1 }')
+  if [[ "${services_bound_to_app}X" != "X" ]]; then
+    echo "  services:" >> ${manifest}
+    for service in ${services_bound_to_app[@]}; do
+      echo "  - ${service}" >> ${manifest}
+    done
+  fi
+
+  if [[ "$(cf env $appname | grep "^\w\w*: \w\w*")X" != "X" ]]; then
+    echo "  env:" >> ${manifest}
+    cf env $appname | grep "^\w\w*: \w\w*" | xargs -L 1 -J % echo "   " % >> ${manifest}
+  fi
+}
+
+app_status=$(cf app ${ssh_appname} | tail -n1 | awk '{print $2}')
+if [[ "$?" == "0" ]]; then
+  if [[ "$app_status" != "running" ]]; then
+    # if ssh instance already running then 'cf app NAME' should return
+    # #0   running   2014-07-13 07:44:46 PM   0.0%   8M of 1G   76.3M of 1G
+    cf start ${ssh_appname}
+  else
+    echo "SSH session already running; only one supported currently until this constrain becomes annoying and someone fixes it :)"
+    exit 1
+  fi
+else
+  create_manifest
+  cf push ${ssh_appname} -f ${manifest}
+fi
+
+sleep 1 # ensure tmate connection setup
+ssh_host=$(cf logs $ssh_appname --recent | grep tmate.io | tail -n1 | awk '{print $NF }')
+
+if [[ "${ssh_host}X" != "X" ]]; then
+  echo "Running: ssh $ssh_host"
+  ssh $ssh_host
+else
+  echo "Failed to run SSH container, skipping..."
+fi
+
+if [[ "${CF_SSH_CLEANUP}" == "delete" ]]; then
+  cf delete $ssh_appname -f
+else
+  cf stop $ssh_appname
+fi
