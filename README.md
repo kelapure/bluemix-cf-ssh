@@ -5,5 +5,5 @@ Provides an easy way to SSH into an [IBM Bluemix](http://bluemix.net) instance f
 
 ###Usage of cf-ssh script: ###
 ```
-cf-ssh [-b buildpack] [-p app_path] [-m memory_amount] APP-NAME
+cf-ssh [-b buildpack] [-p app_path] [-m memory_amount] APP_NAME
 ```
