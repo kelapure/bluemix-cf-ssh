@@ -45,7 +45,6 @@ function create_manifest {
 applications:
 - name: ${ssh_appname}
   command: curl https://raw.githubusercontent.com/ibmjstart/bluemix-cf-ssh/master/bootstrap.sh | sh
-  no-route: true
   memory: ${memory_amount}
 DELIM
 
