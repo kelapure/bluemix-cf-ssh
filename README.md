@@ -8,4 +8,4 @@ Provides an easy way to SSH into an [IBM Bluemix](http://bluemix.net) instance f
 cf-ssh [-b buildpack] [-p app_path] [-m memory_amount] APP_NAME
 ```
 
-See [this blog post](https://developer.ibm.com/bluemix/?p=3743&preview=1&_ppp=1bc70e4e2d) for more details
+See [this blog post](https://developer.ibm.com/bluemix/2014/07/16/easy-ssh-sessions-bluemix/) for more details on getting started.
